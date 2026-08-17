@@ -1,45 +1,29 @@
-import os
-from dotenv import load_dotenv
-import yfinance as yf, pandas as pd, numpy as np, matplotlib.pyplot as plt
+import pandas as pd
+from data import fetch_log_returns
+from analytics import calculate_log_cvar, log_return_to_dollar_loss
 
-# Load key-value pairs from .env
-load_dotenv()
+def main():
+    num_shares = pd.Series({
+        "MSFT": 100, 
+        "AAPL": 200, 
+        "KO": 300, 
+    })
 
-# Read .env variables
-period = os.getenv("PERIOD")
-interval = os.getenv("INTERVAL")
+    # 1. Fetch log returns
+    log_portfolio_returns, current_value = fetch_log_returns(num_shares)
 
-# Portfolio construction 
-num_shares = pd.Series({
-    "MSFT": 100, 
-    "AAPL": 200, 
-    "KO": 300, 
-})
+    # 2. Compute log CVaR
+    var_95_log, cvar_95_log = calculate_log_cvar(log_portfolio_returns, confidence_level=0.95)
 
-portfolio = yf.Tickers(num_shares.index.tolist())
+    # 3. Scale to current dollar value
+    cvar_95_dollars = log_return_to_dollar_loss(cvar_95_log, current_value)
 
-# DataFrame creation
-df = portfolio.download(period=period, interval=interval)
+    print("\n=== Log Return CVaR Metrics ===")
+    print(f"Current Portfolio Value: ${current_value:,.2f}")
+    print(f"95% 1-Day Log VaR:       {var_95_log:.4%}")
+    print(f"95% 1-Day Log CVaR:      {cvar_95_log:.4%}")
+    print("-" * 35)
+    print(f"Estimated Dollar Impact:  ${cvar_95_dollars:,.2f}\n")
 
-# Daily log returns
-df_closing_prices = df["Close"].dropna()
-prev_closing_prices = df_closing_prices.shift(1)
-
-prev_values = prev_closing_prices * num_shares
-prev_portfolio_value = prev_values.sum(axis=1)
-
-simple_daily_return = (df_closing_prices/prev_closing_prices) - 1
-daily_weight = prev_values.div(prev_portfolio_value, axis=0)
-
-weighted_sum = (simple_daily_return * daily_weight).sum(axis=1)
-log_daily_portfolio_return = np.log(1 + weighted_sum)
-
-# Historical CVaR at 95% confidence
-return_at_5th_percentile = np.percentile(log_daily_portfolio_return, 5)
-mean_5_percentiles = np.mean(log_daily_portfolio_return[log_daily_portfolio_return <= return_at_5th_percentile])
-
-current_portfolio_value = df_closing_prices.iloc[-1] @ num_shares
-
-mean_5_percentiles_in_dollars = current_portfolio_value * (np.exp(mean_5_percentiles) - 1)
-
-print(mean_5_percentiles_in_dollars)
+if __name__ == "__main__":
+    main()
