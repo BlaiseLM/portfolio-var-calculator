@@ -1,4 +1,6 @@
 import pandas as pd
+from dotenv import load_dotenv
+load_dotenv(".env.single")
 from data import fetch_log_returns
 from analytics import calculate_log_cvar, log_return_to_dollar_loss
 
