@@ -2,9 +2,6 @@ import os
 import yfinance as yf
 import pandas as pd
 import numpy as np
-from dotenv import load_dotenv
-
-load_dotenv()
 
 def fetch_log_returns(num_shares: pd.Series):
     """
